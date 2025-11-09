@@ -137,6 +137,52 @@ export default function EventFlowDashboard() {
         fetchData(); 
     };
 
+// src/App.jsx 파일 내부에 추가
+
+// 워크플로우 단계를 정의
+const WORKFLOW_STEPS = [
+    { id: 'SETUP', label: '행사 생성 및 설정', requiredData: 'config.title' },
+    { id: 'SPEAKER_INVITE', label: '강사 초대 발송', requiredData: 'speakers.count > 0' },
+    { id: 'SCHEDULE_CONFIRM', label: '일정 확정', requiredData: 'config.confirmedDatetime' },
+    { id: 'ATTENDEE_INVITE', label: '참석자 초대 발송', requiredData: 'counts.registered > 0' },
+    { id: 'REMINDER_READY', label: '리마인더 발송 준비', requiredData: 'tasks.tasksOpen < tasks.tasksTotal' },
+    { id: 'COMPLETE', label: '준비 완료', requiredData: 'logs.finalCheckOk' },
+];
+
+// 현재 진행 단계를 계산하는 함수 (data 객체를 기반으로)
+const getCurrentStep = (data) => {
+    if (!data?.config?.title) return 'SETUP'; // 1단계: 설정 필요
+
+    const confirmedSpeaker = data.speakers?.find(s => s.status === 'CONFIRMED');
+    if (!confirmedSpeaker) {
+        // 초대 메일 발송이 필요하거나 응답 대기 중
+        const invitedCount = data.speakers?.filter(s => s.status === 'INVITED').length;
+        if (invitedCount > 0) return 'SPEAKER_INVITE';
+        // 가등록만 있다면 SETUP 상태로 남아있게 됩니다.
+    } else if (!data.config.confirmedDatetime) {
+        // 강사가 응답했으나 최종 확정 날짜가 config에 기록되지 않은 경우 (Lock 단계 필요)
+        return 'SCHEDULE_CONFIRM';
+    }
+    
+    // 일정 확정 이후
+    if (data.config.confirmedDatetime) {
+        if (data.counts.registered > 0) {
+            // 참석자 모집 중
+            return 'ATTENDEE_INVITE';
+        }
+        // 참석자가 없거나 아직 초대 이메일 발송 전
+    }
+
+    // 최종 단계 판단 로직은 복잡하므로, 일단 확정만 체크
+    if (data.config.confirmedDatetime) {
+        return 'REMINDER_READY'; // 리마인더/최종 점검 단계
+    }
+    
+    return 'SETUP'; // 기본값 (혹은 로직에 따라 적절히 변경)
+};
+
+// 📌 이 함수를 EventFlowDashboard 컴포넌트 내부에서 호출하여 상태를 사용합니다.
+const currentStepId = getCurrentStep(data);
 
     useEffect(() => {
         fetchData();
@@ -213,6 +259,42 @@ export default function EventFlowDashboard() {
                         </div>
                     </div>
                     
+                    // App.jsx return 문 내, <div className="max-w-7xl mx-auto px-4 ..."> 섹션 내부에 추가
+
+// 1단계: 상태 표시기 UI
+<div className="mt-6 bg-white p-4 rounded-lg border border-gray-200">
+    <h3 className="text-md font-semibold text-gray-800 mb-3">
+        진행 상황 ({WORKFLOW_STEPS.find(s => s.id === currentStepId)?.label})
+    </h3>
+    <div className="flex justify-between items-start space-x-1 sm:space-x-4 overflow-x-auto pb-2">
+        {WORKFLOW_STEPS.map((step, index) => {
+            const isActive = step.id === currentStepId;
+            const isCompleted = WORKFLOW_STEPS.findIndex(s => s.id === currentStepId) > index;
+            
+            let circleClass = 'bg-gray-300';
+            if (isCompleted) circleClass = 'bg-green-500';
+            if (isActive) circleClass = 'bg-indigo-600 ring-4 ring-indigo-200';
+            
+            return (
+                <div key={step.id} className="flex flex-col items-center min-w-[100px] sm:min-w-0">
+                    <div className="flex items-center w-full">
+                        <div className={`w-3 h-3 rounded-full flex-shrink-0 ${circleClass}`} />
+                        {/* 마지막 단계가 아니면 선을 추가 */}
+                        {index < WORKFLOW_STEPS.length - 1 && (
+                            <div className={`h-0.5 flex-grow ${isCompleted ? 'bg-green-500' : 'bg-gray-300'}`} />
+                        )}
+                    </div>
+                    <p className={`mt-2 text-xs text-center font-medium ${isActive ? 'text-indigo-600' : 'text-gray-500'}`}>
+                        {step.label}
+                    </p>
+                </div>
+            );
+        })}
+    </div>
+</div>
+
+// 이 코드를 기존 StatCard grid 바로 위에 삽입합니다.
+
                     {/* StatCard 및 Attendance Rate 렌더링 유지 */}
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6">
                         <StatCard icon={Users} label="등록" value={counts?.registered || 0} />
