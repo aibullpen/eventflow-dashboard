@@ -121,10 +121,13 @@ function setConfigValue(key,value){
 }
 
 // ==== Web App API ====
-function createJSONResponse(data) {
+function createJSONResponse(data, origin) {
+  // If an Origin header was supplied, echo it back; otherwise allow all.
+  const allowOrigin = origin || "*";
   return ContentService.createTextOutput(JSON.stringify(data))
     .setMimeType(ContentService.MimeType.JSON)
-    .setHeader("Access-Control-Allow-Origin", "*")
+    .setHeader("Access-Control-Allow-Origin", allowOrigin)
+    .setHeader("Vary", "Origin")
     .setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
     .setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With")
     .setHeader("Access-Control-Max-Age", "3600");
@@ -134,8 +137,11 @@ function createJSONResponse(data) {
 
 function doPost(e){
   let req;
-  try{ req = JSON.parse(e.postData.contents); } 
-  catch(err){ return createJSONResponse({ok:false,error:'잘못된 JSON 형식'}); }
+  try{ req = JSON.parse(e.postData.contents); }
+  catch(err){
+    const origin = (e && e.headers && e.headers.origin) || "*";
+    return createJSONResponse({ok:false,error:'잘못된 JSON 형식'}, origin);
+  }
 
   let result={ok:false,error:`Unknown action: ${req.action}`};
   try{
@@ -145,29 +151,49 @@ function doPost(e){
       case 'get_summary_data': result=apiGetSummaryData(); break;
     }
   }catch(err){ logAction(req.action,'ERROR',err.message); result={ok:false,error:err.message}; }
-  return createJSONResponse(result);
+  // Echo Origin if present to avoid browser rejecting the response
+  const origin = (e && e.headers && e.headers.origin) || "*";
+  return createJSONResponse(result, origin);
 }
 
 function doGet(e){
-  if(e.parameter.action){
+  if(e.parameter && e.parameter.action){
     let result={ok:false,error:'Unknown GET action'};
     try{
       switch(e.parameter.action){
         case 'get_summary_data': result=apiGetSummaryData(); break;
       }
     }catch(err){ logAction(e.parameter.action,'ERROR',err.message); result={ok:false,error:err.message}; }
-    return createJSONResponse(result);
+
+    // If a JSONP callback is provided, return JavaScript to avoid preflight CORS during testing.
+    // Usage (client): GET https://.../exec?action=get_summary_data&callback=cb
+    if(e.parameter.callback){
+      const body = e.parameter.callback + '(' + JSON.stringify(result) + ');';
+      // JSONP responses are JavaScript; no CORS needed for <script> inclusion
+      return ContentService.createTextOutput(body).setMimeType(ContentService.MimeType.JAVASCRIPT);
+    }
+
+    const origin = (e && e.headers && e.headers.origin) || "*";
+    return createJSONResponse(result, origin);
   }
-  return HtmlService.createTemplateFromFile('index').evaluate().setTitle('EventFlow Dashboard').setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+
+  return HtmlService.createTemplateFromFile('index')
+    .evaluate()
+    .setTitle('EventFlow Dashboard')
+    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
 
 function doOptions(e) {
+  // Echo Origin when possible to satisfy browsers that require exact origin matching.
+  const origin = (e && e.headers && (e.headers.origin || e.headers.Origin)) || "*";
   return ContentService.createTextOutput("")
     .setMimeType(ContentService.MimeType.TEXT)
-    .setHeader("Access-Control-Allow-Origin", "*")
+    .setHeader("Access-Control-Allow-Origin", origin)
+    .setHeader("Vary", "Origin")
     .setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
     .setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With")
-    .setHeader("Access-Control-Max-Age", "3600");
+    .setHeader("Access-Control-Max-Age", "3600")
+    .setHeader("Access-Control-Allow-Credentials", "false");
 }
 
 

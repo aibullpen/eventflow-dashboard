@@ -6,7 +6,7 @@ import AppContainer from "./AppContainer"; // 기존 대시보드(기존 app.jsx
 import LoadingSpinner from "./components/LoadingSpinner"; // 선택사항. 없으면 간단한 텍스트로 대체 가능.
 
 // *** 반드시 본인의 Apps Script (또는 백엔드) 배포 URL로 변경하세요 ***
-const API_URL = "https://script.google.com/macros/s/AKfycbzm0fa4Zw4mdkTsrb0AFfXytF2pwwyVvZ2WZCcUywLOQxqBToRzl5xdoy3dsXzVrhBn/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycbzzSKtYV9OuwH8W4fLyaFSg7zYduJ_qNVjBqBJejYOvC6-Pkgafdis_C4GIdsTtng0R/exec";
 
 export default function App() {
   // 상태: userId 기준으로 로그인 여부 판단, eventId 선택으로 화면 전환
