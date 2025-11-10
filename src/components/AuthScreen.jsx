@@ -23,10 +23,9 @@ export default function AuthScreen({ onLogin }) {
         return;
       }
 
-      const gasUrl =
+      const url =
         import.meta.env.VITE_GAS_URL ||
         "https://script.google.com/macros/s/AKfycbxfNZp3eLz3q_ZG5u99prUFafW3nBHD5sEndclRu57d-Ycdi6S6KVdukINlSBeCO3Nv/exec";
-      const url = `https://cors-anywhere.herokuapp.com/${gasUrl}`;
 
       const response = await fetch(url, {
         method: "POST",
