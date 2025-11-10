@@ -23,18 +23,22 @@ export default function AuthScreen({ onLogin }) {
         return;
       }
 
-      const url =
+      const gasUrl =
         import.meta.env.VITE_GAS_URL ||
         "https://script.google.com/macros/s/AKfycbxfNZp3eLz3q_ZG5u99prUFafW3nBHD5sEndclRu57d-Ycdi6S6KVdukINlSBeCO3Nv/exec";
+      const url = `https://cors-anywhere.herokuapp.com/${gasUrl}`;
 
       const response = await fetch(url, {
         method: "POST",
+        mode: "cors",
+        credentials: "omit",
         headers: {
-          "Content-Type": "application/json", // ✅ 필수
+          "Content-Type": "application/json",
+          "Accept": "application/json",
         },
         body: JSON.stringify({
           action: "login",
-          idToken: email, // 실제 구현 시 OAuth 토큰
+          idToken: email,
           name: name,
         }),
       });
