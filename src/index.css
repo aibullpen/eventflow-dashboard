@@ -1,24 +1,4 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
-```
-
-### 4. `src/App.jsx` 수정
-`src` 폴더 안의 `App.jsx` 파일 내용을 위 아티팩트의 전체 코드로 교체
-
-### 5. `src/App.css` 삭제 (선택사항)
-
----
-
-## 파일 구조 확인
-```
-eventflow-dashboard/
-├── node_modules/
-├── src/
-│   ├── App.jsx          ← 아티팩트 코드로 교체
-│   ├── index.css        ← @tailwind 3줄만
-│   └── main.jsx
-├── tailwind.config.js   ← 새로 생성
-├── postcss.config.js    ← 새로 생성
-├── package.json
-└── index.html
+body {
+  margin: 0;
+  padding: 0;
+}
