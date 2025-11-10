@@ -24,8 +24,8 @@ export default function AuthScreen({ onLogin }) {
       }
 
       const url =
-        process.env.REACT_APP_GAS_URL ||
-        "https://script.google.com/macros/s/YOUR_SCRIPT_ID/exechttps://script.google.com/macros/s/AKfycbxfNZp3eLz3q_ZG5u99prUFafW3nBHD5sEndclRu57d-Ycdi6S6KVdukINlSBeCO3Nv/exec";
+        import.meta.env.VITE_GAS_URL ||
+        "https://script.google.com/macros/s/AKfycbxfNZp3eLz3q_ZG5u99prUFafW3nBHD5sEndclRu57d-Ycdi6S6KVdukINlSBeCO3Nv/exec";
 
       const response = await fetch(url, {
         method: "POST",
