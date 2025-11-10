@@ -2,45 +2,91 @@
 import React, { useState } from "react";
 import EventCreationModal from "./EventCreationModal";
 
-export default function EventListScreen({ user, events = [], onSelectEvent, onLogout, onRefresh, apiUrl, error }) {
+export default function EventListScreen({ user, events = [], onSelectEvent, onLogout, onRefresh, apiUrl, apiRequest, error }) {
   const [showCreate, setShowCreate] = useState(false);
   const [localError, setLocalError] = useState(null);
   const [creating, setCreating] = useState(false);
 
   const handleCreate = async (payload) => {
-    // payload 예: { name, date, description }
+    // payload 예: { name, date, location, description }
     setLocalError(null);
-    if (!apiUrl) {
+    if ((!apiUrl) && typeof apiRequest !== "function") {
       setLocalError("API URL 설정이 필요합니다.");
       return;
     }
     setCreating(true);
-    try {
-      const res = await fetch(apiUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "createEvent", userId: user.id, ...payload }),
-      });
 
-      if (!res.ok) {
-        // fallback to GET-style
-        const q = `${apiUrl}?action=createEvent&userId=${encodeURIComponent(user.id)}&name=${encodeURIComponent(payload.name || "")}&date=${encodeURIComponent(payload.date || "")}&description=${encodeURIComponent(payload.description || "")}`;
-        const fallback = await fetch(q);
-        if (!fallback.ok) throw new Error("행사 생성 실패");
-        const fdata = await fallback.json();
-        if (!fdata.ok) throw new Error(fdata.message || "생성 실패");
-        setShowCreate(false);
-        onRefresh && onRefresh();
-        return;
+    // 서버에서 기대하는 필드로 매핑
+    const title = payload.name || payload.title || "(제목없음)";
+    const dates = payload.date ? [payload.date] : (payload.dates || []);
+    const location = payload.location || "";
+
+    try {
+      let data;
+
+      // 1) 부모가 전달한 apiRequest(헬퍼)가 있으면 우선 사용
+      if (typeof apiRequest === "function") {
+        data = await apiRequest("create_new_event", {
+          user_id: user.id,
+          title,
+          location,
+          dates
+        });
+      } else {
+        // 2) form-urlencoded POST 시도 (preflight 회피)
+        const form = new URLSearchParams();
+        form.append("action", "create_new_event");
+        form.append("user_id", user.id);
+        form.append("title", title);
+        form.append("location", location);
+        // dates는 JSON 문자열로 전송
+        form.append("dates", JSON.stringify(dates));
+
+        try {
+          const res = await fetch(apiUrl, {
+            method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8" },
+            body: form.toString(),
+          });
+
+          if (!res.ok) {
+            throw new Error(`POST 요청 실패 (status ${res.status})`);
+          }
+          const txt = await res.text();
+          data = txt ? JSON.parse(txt) : {};
+        } catch (postErr) {
+          // 3) POST 실패 시 GET 폴백
+          const qs = new URLSearchParams({
+            action: "create_new_event",
+            user_id: user.id,
+            title,
+            location,
+            dates: JSON.stringify(dates),
+          });
+          const url = `${apiUrl}?${qs.toString()}`;
+          const res2 = await fetch(url, { method: "GET" });
+          if (!res2.ok) throw new Error(`Fallback GET 실패 (status ${res2.status})`);
+          const txt2 = await res2.text();
+          data = txt2 ? JSON.parse(txt2) : {};
+        }
       }
 
-      const data = await res.json();
-      if (!data.ok) throw new Error(data.message || "행사 생성에 실패했습니다.");
+      // 응답 검사
+      if (!data) throw new Error("서버로부터 응답이 없습니다.");
+      if (data.ok === false) throw new Error(data.error || data.message || "행사 생성 실패");
+
+      // 성공 처리: 모달 닫고 목록 갱신
       setShowCreate(false);
       onRefresh && onRefresh();
     } catch (err) {
       console.error("Create event error:", err);
-      setLocalError(err.message || "행사 생성 중 오류가 발생했습니다.");
+      const msg = (err && err.message) ? err.message : String(err);
+      // 브라우저의 'Failed to fetch' 같은 메시지면 CORS 가능성 안내
+      if (msg.includes("Failed to fetch") || msg.includes("CORS")) {
+        setLocalError("네트워크 요청에 실패했습니다. (CORS 또는 네트워크 문제 가능) 서버 배포 설정을 확인하세요.");
+      } else {
+        setLocalError(msg);
+      }
     } finally {
       setCreating(false);
     }
@@ -67,10 +113,14 @@ export default function EventListScreen({ user, events = [], onSelectEvent, onLo
         {Array.isArray(events) && events.length > 0 ? (
           <ul style={styles.list}>
             {events.map((ev) => (
-              <li key={ev.id || ev.eventId || ev.name} style={styles.item}>
+              <li key={ev.id || ev.eventId || ev.title || ev.name} style={styles.item}>
                 <div style={{ flex: 1 }}>
-                  <div style={styles.eventName}>{ev.name || ev.title || "(무명 행사)"}</div>
-                  <div style={styles.eventMeta}>{ev.date ? `일시: ${ev.date}` : ""} {ev.location ? ` · ${ev.location}` : ""}</div>
+                  <div style={styles.eventName}>{ev.title || ev.name || "(무명 행사)"}</div>
+                  <div style={styles.eventMeta}>
+                    {ev.date ? `일시: ${ev.date}` : (ev.dates ? `일시: ${ev.dates}` : "")}
+                    {ev.location ? ` · ${ev.location}` : ""}
+                    {ev.status ? ` · 상태: ${ev.status}` : ""}
+                  </div>
                 </div>
                 <div style={{ marginLeft: 12 }}>
                   <button onClick={() => onSelectEvent(ev)} style={styles.select}>열기</button>

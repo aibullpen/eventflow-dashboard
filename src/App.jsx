@@ -6,7 +6,7 @@ import AppContainer from "./AppContainer"; // 기존 대시보드(기존 app.jsx
 import LoadingSpinner from "./components/LoadingSpinner"; // 선택사항. 없으면 간단한 텍스트로 대체 가능.
 
 // *** 반드시 본인의 Apps Script (또는 백엔드) 배포 URL로 변경하세요 ***
-const API_URL = "https://script.google.com/macros/s/AKfycbxzv3aRIPeq7UV9hkHQLfJgMVJNfniCFCW8yArhI96k_Plw-NLZICOsXt71aOSQK-hx/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycbxC_vYO_vzmcz9j29Uz_2oL40ioNXe0_bnm7n69c7Fb9BOSNvCnNIo_J4gWpDE4SRrX/exec";
 
 export default function App() {
   // 상태: userId 기준으로 로그인 여부 판단, eventId 선택으로 화면 전환
@@ -109,17 +109,22 @@ export default function App() {
     );
   }
 
-  // 비로그인 상태 => AuthScreen 보여주기
-  if (!user) {
-    return (
-      <div style={{ minHeight: "100vh" }}>
-        <AuthScreen
-          onLogin={handleLogin}
-          apiUrl={API_URL} // 필요하면 AuthScreen에서 회원가입 API 호출에 사용
-        />
-      </div>
-    );
-  }
+// App.jsx (로그인 체크 부분)
+if (!user) {
+  return (
+    <div style={{ minHeight: "100vh" }}>
+      <AuthScreen
+        // 로그인 성공 시 handleLogin 호출
+        onLogin={(loggedInUser) => {
+          console.log("로그인 성공:", loggedInUser);
+          handleLogin(loggedInUser); // 상위 상태 업데이트
+        }}
+        apiUrl={API_URL} // AuthScreen에서 API 호출에 사용
+      />
+    </div>
+  );
+}
+
 
   // 로그인 상태이며 행사 선택이 없을 때 => EventListScreen
   if (user && !selectedEvent) {

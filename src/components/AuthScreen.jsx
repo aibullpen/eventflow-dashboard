@@ -1,154 +1,115 @@
 // src/components/AuthScreen.jsx
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 
-export default function AuthScreen({ onLogin, apiUrl }) {
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
+export default function AuthScreen({ onLogin }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  const validate = () => {
-    if (!name.trim()) return "이름을 입력하세요.";
-    if (!email.trim()) return "이메일(아이디)을 입력하세요.";
-    // 간단 이메일 형식 검사
-    const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!re.test(email.trim())) return "유효한 이메일을 입력하세요.";
-    return null;
-  };
+  const emailRef = useRef(null);
+  const nameRef = useRef(null);
 
   const handleSubmit = async (e) => {
-    e && e.preventDefault();
+    e.preventDefault();
     setError(null);
-    const v = validate();
-    if (v) {
-      setError(v);
-      return;
-    }
-
-    if (!apiUrl) {
-      setError("API URL이 설정되지 않았습니다.");
-      return;
-    }
-
     setLoading(true);
-    try {
-      // Apps Script가 POST를 지원하면 body JSON으로, 아니면 GET으로 변경 가능
-      const res = await fetch(apiUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "login",
-          name: name.trim(),
-          email: email.trim(),
-        }),
-      });
 
-      // 일부 GAS 스크립트는 200을 주지만 JSON을 감싸서 주기도 합니다.
-      if (!res.ok) {
-        // GET fallback (간혹 GAS 배포 설정에 따라 POST 차단된 경우)
-        const fallback = await fetch(`${apiUrl}?action=login&name=${encodeURIComponent(name.trim())}&email=${encodeURIComponent(email.trim())}`);
-        if (!fallback.ok) throw new Error("로그인 요청 실패");
-        const fdata = await fallback.json();
-        if (!fdata || !fdata.ok) throw new Error(fdata?.message || "로그인 실패");
-        onLogin(fdata.user || { id: email.trim(), name: name.trim() });
+    try {
+      const email = emailRef.current.value.trim();
+      const name = nameRef.current.value.trim();
+
+      if (!email || !name) {
+        setError("이름과 이메일을 모두 입력해주세요.");
+        setLoading(false);
         return;
       }
 
-      const data = await res.json();
-      if (!data) throw new Error("빈 응답");
-      if (!data.ok) throw new Error(data.message || "로그인 실패");
-      // 데이터 포맷: { ok:true, user: { id, name, ... } }
-      const user = data.user || { id: email.trim(), name: name.trim() };
-      onLogin(user);
+      const url =
+        process.env.REACT_APP_GAS_URL ||
+        "https://script.google.com/macros/s/YOUR_SCRIPT_ID/exechttps://script.google.com/macros/s/AKfycbxfNZp3eLz3q_ZG5u99prUFafW3nBHD5sEndclRu57d-Ycdi6S6KVdukINlSBeCO3Nv/exec";
+
+      const response = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json", // ✅ 필수
+        },
+        body: JSON.stringify({
+          action: "login",
+          idToken: email, // 실제 구현 시 OAuth 토큰
+          name: name,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!data.ok) {
+        throw new Error(data.error || "로그인 실패");
+      }
+
+      console.log("Login success:", data.user);
+      onLogin && onLogin(data.user); // 상위 컴포넌트에 사용자 전달
     } catch (err) {
       console.error("Auth error:", err);
-      setError(err.message || "로그인 중 오류가 발생했습니다.");
+      setError(err.message);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div style={styles.wrap}>
-      <div style={styles.card}>
-        <h1 style={styles.title}>로그인 / 회원가입</h1>
-
-        <form onSubmit={handleSubmit} style={styles.form}>
-          <label style={styles.label}>
-            이름
-            <input
-              style={styles.input}
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="홍길동"
-              disabled={loading}
-            />
-          </label>
-
-          <label style={styles.label}>
-            이메일 (ID)
-            <input
-              style={styles.input}
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="you@example.com"
-              disabled={loading}
-            />
-          </label>
-
-          {error && <div style={styles.error}>{error}</div>}
-
-          <div style={styles.actions}>
-            <button type="submit" style={styles.primary} disabled={loading}>
-              {loading ? "처리중..." : "계속"}
-            </button>
-          </div>
-
-          <p style={styles.note}>
-            ※ Google OAuth 대신 간단 인증을 사용합니다. 이메일(ID)로 사용자 구분이 됩니다.
-          </p>
-        </form>
-      </div>
+    <div style={styles.container}>
+      <h2>EventFlow 로그인</h2>
+      <form onSubmit={handleSubmit} style={styles.form}>
+        <input
+          type="text"
+          placeholder="이름"
+          ref={nameRef}
+          style={styles.input}
+        />
+        <input
+          type="email"
+          placeholder="이메일"
+          ref={emailRef}
+          style={styles.input}
+        />
+        <button type="submit" style={styles.button} disabled={loading}>
+          {loading ? "로그인 중..." : "로그인"}
+        </button>
+        {error && <div style={styles.error}>{error}</div>}
+      </form>
     </div>
   );
 }
 
 const styles = {
-  wrap: {
-    minHeight: "100vh",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    padding: 20,
-    background: "#f7f8fb",
-  },
-  card: {
-    width: 420,
-    maxWidth: "95%",
-    padding: 20,
-    borderRadius: 8,
-    boxShadow: "0 6px 20px rgba(0,0,0,0.06)",
-    background: "#fff",
-  },
-  title: { margin: 0, marginBottom: 12, fontSize: 20 },
-  form: { display: "flex", flexDirection: "column", gap: 10 },
-  label: { display: "flex", flexDirection: "column", fontSize: 13, color: "#333" },
-  input: {
-    marginTop: 6,
-    padding: "8px 10px",
-    fontSize: 14,
-    borderRadius: 6,
+  container: {
+    maxWidth: 400,
+    margin: "80px auto",
+    padding: 24,
     border: "1px solid #ddd",
+    borderRadius: 8,
+    background: "#fff",
+    boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
+    textAlign: "center",
   },
-  actions: { marginTop: 8, display: "flex", justifyContent: "flex-end" },
-  primary: {
-    padding: "8px 14px",
-    background: "#2563eb",
-    color: "#fff",
-    border: "none",
+  form: { display: "flex", flexDirection: "column", gap: 12 },
+  input: {
+    padding: 10,
     borderRadius: 6,
+    border: "1px solid #ccc",
+    fontSize: 16,
+  },
+  button: {
+    padding: 10,
+    borderRadius: 6,
+    border: "none",
+    background: "#0ea5e9",
+    color: "#fff",
+    fontSize: 16,
     cursor: "pointer",
   },
-  note: { marginTop: 12, fontSize: 12, color: "#666" },
-  error: { marginTop: 6, color: "#b91c1c", fontSize: 13 },
+  error: {
+    marginTop: 12,
+    color: "#b91c1c",
+    fontSize: 14,
+  },
 };
